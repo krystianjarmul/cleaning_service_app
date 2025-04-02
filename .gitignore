@@ -1,0 +1,9 @@
+.idea/
+media/
+invoices/data/
+db.sqlite3
+.venv/
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
