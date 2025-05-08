@@ -1,19 +1,13 @@
+import datetime
+
 from django.db import models
 
 
-class Employee(models.Model):
-
-    class Meta:
-        indexes = [
-            models.Index(fields=['name']),
-            models.Index(fields=['is_employer'])
-        ]
+class Employer(models.Model):
 
     name = models.CharField(
         max_length=100,
     )
-
-    is_employer = models.BooleanField(default=False)
 
     data = models.JSONField(default=dict)
 
@@ -26,7 +20,38 @@ class Employee(models.Model):
     )
 
     def __str__(self):
-        return self.name 
+        return self.name
+
+
+class Employee(models.Model):
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['name']),
+            models.Index(fields=['code']),
+        ]
+
+    name = models.CharField(
+        max_length=100,
+    )
+
+    code = models.CharField(
+        max_length=2,
+        null=True
+    )
+
+    data = models.JSONField(default=dict)
+
+    created_at = models.DateTimeField(
+        auto_now_add=True
+    )
+
+    updated_at = models.DateTimeField(
+        auto_now=True
+    )
+
+    def __str__(self):
+        return f"{self.code} | {self.name}"
 
 
 class Customer(models.Model):
@@ -40,9 +65,9 @@ class Customer(models.Model):
         max_length=100,
     )
 
-    data = models.JSONField(default=dict)
-
     price = models.IntegerField()
+
+    data = models.JSONField(default=dict)
 
     created_at = models.DateTimeField(
         auto_now_add=True
@@ -52,9 +77,9 @@ class Customer(models.Model):
         auto_now=True
     )
 
-    def __str__(self):
-        return self.name 
-    
+    def __str__(self) -> str:
+        return self.name
+
 
 class Work(models.Model):
 
@@ -77,7 +102,7 @@ class Work(models.Model):
         related_name='works',
     )
 
-    hours = models.IntegerField()
+    hours = models.FloatField()
 
     date = models.DateField()
 
@@ -93,23 +118,14 @@ class Work(models.Model):
         return f"Work {self.date} | {self.customer.name} | {self.employee.name}"
 
 
-class Invoice(models.Model):
+class CustomerInvoice(models.Model):
 
-    class Type(models.TextChoices):
-        EMPLOYEE = "employee"
-        CUSTOMER = "customer"
-
-    filename = models.CharField(
-        max_length=100
+    customer = models.ForeignKey(
+        Customer,
+        on_delete=models.CASCADE
     )
 
-    type = models.CharField(
-        max_length=10,
-        choices=Type.choices,
-        default=Type.CUSTOMER
-    )
-
-    file = models.FileField(upload_to="invoices/")
+    data = models.JSONField(default=dict)
 
     created_at = models.DateTimeField(
         auto_now_add=True
@@ -118,3 +134,7 @@ class Invoice(models.Model):
     updated_at = models.DateTimeField(
         auto_now=True
     )
+
+    @property
+    def number(self):
+        return self.data.get('cnt', {}).get('invoice_number')

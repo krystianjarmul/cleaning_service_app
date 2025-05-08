@@ -1,9 +1,14 @@
 .idea/
+.DS_Store
 media/
-invoices/data/
+invoices/data/*
+invoices/docx/*
 db.sqlite3
 .venv/
+.env
 *.pyc
 *.pyo
 *.pyd
-__pycache__/
+/__pycache__/**
+google_api.json
+staticfiles/*

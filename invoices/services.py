@@ -1,139 +1,319 @@
 import datetime
-from io import BytesIO
+import os
+import io
+import shutil
 
-from django.core.files.base import ContentFile
-from django.db.models import ExpressionWrapper, Value, F, IntegerField
+from django.conf import settings
+from django.db.models import QuerySet
 from docxtpl import DocxTemplate
 
 from .data.customers import CUSTOMERS
 from .data.employees import EMPLOYEES
-from .models import Employee, Customer, Work, Invoice
+from .data.employer import EMPLOYER
+from .engine import (
+    DocxGenerator,
+    Contractor,
+    Address,
+    BankAccount,
+    Client,
+    Content,
+    Item,
+    Contact, Context
+)
+from .drive import GoogleDriveClient
+from .models import Employee, Customer, Employer, Work
+from .repositories import (
+    EmployerRepository,
+    CustomerRepository,
+    WorkRepository,
+    CustomerInvoiceRepository,
+    EmployeeRepository
+)
 
-EMPLOYEE_INVOICE_TEMPLATE = 'invoices/templates/employee.docx'
-CUSTOMER_INVOICE_TEMPLATE = 'invoices/templates/customer.docx'
+
+class InitDatabaseService:
+
+    def __init__(
+            self,
+            drive: GoogleDriveClient,
+            customer_repo: CustomerRepository,
+            employee_repo: EmployeeRepository,
+            employer_repo: EmployerRepository
+    ):
+        self.drive = drive
+
+        self.customer_repo = customer_repo
+        self.employee_repo = employee_repo
+        self.employer_repo = employer_repo
+
+        self.data = {
+            'customers': CUSTOMERS,
+            'employees': EMPLOYEES,
+            'employer': EMPLOYER
+        }
+
+    def execute(self):
+        self.clean_up()
+        self.init_customers()
+        self.init_employees()
+        self.init_employer()
+
+    def init_customers(self):
+        self.customer_repo.create_many(self.data['customers'])
+
+    def init_employees(self):
+        self.employee_repo.create_many(self.data['employees'])
+
+    def init_employer(self):
+        self.employer_repo.create(self.data['employer'])
+
+    def clean_up(self):
+        self.customer_repo.delete_all()
+        self.employee_repo.delete_all()
+        self.employer_repo.delete_all()
 
 
-def delete_customers_and_employees():
-    Employee.objects.all().delete()
-    Customer.objects.all().delete()
+class CleanDatabaseService:
 
-def init_customers_and_employees():
+    def __init__(
+            self,
+            customer_repo: CustomerRepository,
+            employee_repo: EmployeeRepository,
+            employer_repo: EmployerRepository
+    ):
+        self.customer_repo = customer_repo
+        self.employee_repo = employee_repo
+        self.employer_repo = employer_repo
 
-    employees = [
-        Employee(
-            name=employee['name'],
-            data=employee['data'],
-            is_employer=employee.get('is_employer', False)
+    def execute(self):
+        self.customer_repo.delete_all()
+        self.employee_repo.delete_all()
+        self.employer_repo.delete_all()
+
+
+class InitTemplateService:
+
+    def __init__(self, drive: GoogleDriveClient):
+        self.drive = drive
+        self._temp_dir = 'tmp'
+
+    def execute(self):
+        self._create_temp_dir()
+        self.download_templates()
+        self._remove_temp_dir()
+
+    def download_templates(self):
+        for filename, file_id in settings.GOOGLE_DRIVE_DOCX_TEMPLATES.items():
+            output_path = f'{self._temp_dir}/{filename}'
+            self.drive.download(file_id=file_id, output_path=output_path)
+            doc = DocxTemplate(output_path)
+            doc.save(f'invoices/docx/{filename}.docx')
+
+    def _create_temp_dir(self):
+        os.makedirs(self._temp_dir, exist_ok=True)
+
+    def _remove_temp_dir(self):
+        shutil.rmtree(self._temp_dir)
+
+
+class GenerateCustomerInvoicesService:
+
+    def __init__(
+            self,
+            start_date: datetime.date,
+            end_date: datetime.date,
+            drive: GoogleDriveClient,
+            employer_repo: EmployerRepository,
+            customer_repo: CustomerRepository,
+            work_repo: WorkRepository,
+            invoice_repo: CustomerInvoiceRepository
+    ):
+        self.start_date = start_date
+        self.end_date = end_date
+        self.template = settings.BASE_DIR / settings.CUSTOMER_TEMPLATE_PATH
+
+        self.drive = drive
+
+        self.employer_repo = employer_repo
+        self.customer_repo = customer_repo
+        self.work_repo = work_repo
+        self.invoice_repo = invoice_repo
+
+    def execute(self):
+        employer = self.employer_repo.get()
+        works = self.work_repo.get_for_invoice(self.start_date, self.end_date)
+        customers = self.customer_repo.get_for_invoice(
+            self.start_date,
+            self.end_date,
+            works=works
         )
-        for employee in EMPLOYEES
-    ]
-    customers = [
-        Customer(
-            name=customer['name'],
-            price=customer['price'],
-            data=customer['data']
+
+        folder_id = self.drive.create_folder_structure(
+            f'customers/{self.end_date.year}/{self.end_date.month:02d}'
         )
-        for customer in CUSTOMERS
-    ]
 
-    Employee.objects.bulk_create(employees)
-    Customer.objects.bulk_create(customers)
+        contractor = self._build_contractor(name=employer.name, data=employer.data)
 
+        invoices = []
+        for customer in customers:
+            client = self._build_client(data=customer.data)
+            content = self._build_content(works=works, data=customer.data)
+            filename = self._create_filename(customer.name)
 
-def add_working_day(employee_id: int, customer_ids: list[int], date: datetime.date):
-    works = [
-        Work(customer_id=customer_id, employee_id=employee_id, date=date)
-        for customer_id in customer_ids
-    ]
-    Work.objects.bulk_create(works)
+            context = Context(
+                client=client,
+                contractor=contractor,
+                content=content
+            )
 
+            generator = DocxGenerator(
+                data=context.dict(),
+                template=self.template,
+            )
 
-def create_customer_invoice(
-    customer_id: int, 
-    start_date: datetime.date,
-    end_date: datetime.date,
-):
-    customer = Customer.objects.prefetch_related('works').filter(id=customer_id).first()
-    employer = Employee.objects.filter(is_employer=True).first()
+            with io.BytesIO() as buffer:
+                generator.generate(buffer)
+                file_id = self.drive.upload(
+                    file=buffer,
+                    filename=filename,
+                    parent_id=folder_id
+                )
+                self.drive.convert_docx_to_pdf(
+                    file_id=file_id,
+                    filename=filename,
+                    folder_id=folder_id
+                )
 
-    works = (
-        customer
-        .works
-        .filter(date__gte=start_date, date__lte=end_date)
-        .annotate(
-            total=ExpressionWrapper(
-                Value(customer.price) * F('hours'),
-                output_field=IntegerField()
+            invoice = self.invoice_repo.create_draft(
+                customer_id=customer.id,
+                data=context.dict()
+            )
+
+            invoices.append(invoice)
+
+        self.invoice_repo.create_many(invoices)
+
+    @staticmethod
+    def _create_filename(name: str) -> str:
+        customer_name = (
+            name
+            .lower()
+            .replace(" ", "_")
+            .replace("-", "_")
+        )
+        return f'{customer_name}.docx'
+
+    @staticmethod
+    def _build_contractor(name: str, data: dict) -> Contractor:
+        return Contractor(
+            name=name,
+            company=data['company'],
+            number=f'St.Nr. {data["st_nr"]} USt-Id.Nr: {data["vat_id"]}',
+            address=Address(
+                street_name=data['address']['street_name'],
+                zip_code=data['address']['zip_code'],
+                city=data['address']['city']
+            ),
+            bank_account=BankAccount(
+                bank_name=data['bank_account']['bank_name'],
+                iban=data['bank_account']['iban'],
+                bic=data['bank_account']['bic']
+            ),
+            contact=Contact(
+                email=data['contact']['email'],
+                phone=data['contact']['phone']
             )
         )
-    )
-    total_price = 0
-    for work in works:
-        work.total = work.total / 100
-        total_price += work.total
 
-    today = datetime.datetime.now()
+    @staticmethod
+    def _build_client(data: dict) -> Client:
+        number = f"St.Nr.{data['st_nr']}" if data.get('st_nr') else None
+        return  Client(
+            name=data['name'],
+            address=Address(
+                street_name=data['address']['street_name'],
+                zip_code=data['address']['zip_code'],
+                city=data['address']['city']
+            ),
+            number=number
+        )
 
-    context = {
-        "c": customer,
-        "e": employer,
-        "total_price": total_price,
-        "works": works,
-        "issue_date": today.strftime("%d.%m.%Y"),
-        "year": today.year,
-        "invoice_number": 1
-    }
+    def _build_content(self, data: dict, works: QuerySet[Work]) -> Content:
+        grouper = {}
+        for work in works:
+            if work.date not in grouper:
+                grouper[work.date] = {'price': work.total_price, 'hours': work.hours}
+            else:
+                grouper[work.date]['price'] += work.total_price
+                grouper[work.date]['hours'] += work.hours
 
-    filename = (
-        f"{customer.name.lower()}_{today.date()}.docx"
-        .replace(' ', '_')
-        .replace('-', '_')
-    )
+        items = [
+            Item(date=date, price=values['price'], hours=values['hours'])
+            for date, values in grouper.items()
+        ]
 
-    generate_invoice(
-        template=CUSTOMER_INVOICE_TEMPLATE,
-        context=context,
-        filename=filename
-    )
-
-
-def create_employee_invoice(
-    employee_id: int, 
-    start_date: datetime.date,
-    end_date: datetime.date,
-):
-    employee = Employee.objects.prefetch_related('works').filter(id=employee_id).first()
-
-    works = employee.works.filter(date__gte=start_date, date__lte=end_date)
-
-    context = {
-        "works": works
-    }
-
-    filename = (
-        f"{employee.name.lower()}_{datetime.datetime.now()}.docx"
-        .replace(' ', '_')
-        .replace('-', '_')
-    )
-
-    generate_invoice(
-        filename=filename,
-        template=EMPLOYEE_INVOICE_TEMPLATE,
-        context=context
-    )
+        return Content(
+            items=items,
+            invoice_number='345',
+            issue_date=self.end_date,
+            extended=data.get('wants_extended_invoice', False),
+            vat=data.get('is_vat', False),
+            year=self.end_date.year,
+            month=self.end_date.month,
+            note=data['note'],
+        )
 
 
-def generate_invoice(filename: str, template: str, context: dict):
+class RestoreCustomerInvoicesService:
 
-    file_buffer = BytesIO()
+    def __init__(
+            self,
+            drive: GoogleDriveClient,
+            repo: CustomerInvoiceRepository,
+    ):
+        self.drive = drive
+        self.repo = repo
+        self.template = settings.BASE_DIR / settings.CUSTOMER_TEMPLATE_PATH
 
-    doc = DocxTemplate(template)
-    doc.render(context)
-    doc.save(file_buffer)
+    def execute(self):
 
-    file_buffer.seek(0)
-    django_file = ContentFile(file_buffer.read(), name=filename)
+        invoices = self.repo.get_all()
 
-    invoice = Invoice(filename=filename)
-    invoice.file.save(filename, django_file)
-    invoice.save()
+        for invoice in invoices:
+            generator = DocxGenerator(data=invoice.data, template=self.template)
+
+            with io.BytesIO() as buffer:
+                generator.generate(buffer)
+                filename = self._create_filename(invoice.customer.name)
+                backup_filepath = self._create_backup_folder_structure(
+                    data=invoice.data,
+                )
+                folder_id = self.drive.create_folder_structure(backup_filepath)
+                file_id = self.drive.upload(
+                    file=buffer,
+                    filename=filename,
+                    parent_id=folder_id
+                )
+                self.drive.convert_docx_to_pdf(
+                    file_id=file_id,
+                    filename=filename,
+                    folder_id=folder_id
+                )
+
+    @staticmethod
+    def _create_filename(name: str) -> str:
+        customer_name = (
+            name
+            .lower()
+            .replace(" ", "_")
+            .replace("-", "_")
+        )
+        return f'{customer_name}.docx'
+
+    @staticmethod
+    def _create_backup_folder_structure(data: dict) -> str:
+        issue_date = data.get('cnt', {}).get('issue_date')
+        date = datetime.datetime.strptime(issue_date, '%d.%m.%Y')
+        year = date.strftime('%Y')
+        month = date.strftime('%m')
+        return f'backup/customers/{year}/{month}'
