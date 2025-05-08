@@ -2,7 +2,9 @@
 .DS_Store
 media/
 invoices/data/*
+!invoices/data/.gitkeep
 invoices/docx/*
+!invoices/docx/.gitkeep
 db.sqlite3
 .venv/
 .env
