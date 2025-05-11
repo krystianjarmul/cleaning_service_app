@@ -28,7 +28,10 @@ class EmployerAdmin(admin.ModelAdmin):
         if request.method == 'POST':
             form = GenerateInvoiceForm(request.POST)
             if form.is_valid():
-                generate_customer_invoices.delay(form.cleaned_data['month'])
+                generate_customer_invoices.delay(
+                    month=form.cleaned_data['month'],
+                    last_invoice_number=form.cleaned_data['last_invoice_number'],
+                )
 
                 messages.success(request, 'Invoices has been created.')
                 url = reverse('admin:invoices_employer_changelist')

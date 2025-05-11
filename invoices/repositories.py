@@ -97,5 +97,19 @@ class CustomerInvoiceRepository:
         CustomerInvoice.objects.bulk_create(invoices)
 
     @staticmethod
+    def update_many(invoices: list[CustomerInvoice]):
+        CustomerInvoice.objects.bulk_update(
+            invoices,
+            fields=['data', 'updated_at']
+        )
+
+    @staticmethod
     def get_all() -> QuerySet[CustomerInvoice]:
         return CustomerInvoice.objects.all()
+
+    @staticmethod
+    def get_by_month(year: int, month: int) -> QuerySet[CustomerInvoice]:
+        return CustomerInvoice.objects.filter(
+            data__year=year,
+            data__month=month
+        )

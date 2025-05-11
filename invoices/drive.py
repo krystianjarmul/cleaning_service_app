@@ -41,8 +41,7 @@ class GoogleDriveClient:
         if parent_id:
             query += f" and '{parent_id}' in parents"
 
-        results = self.service.files().list(q=query,
-                                            fields="files(id, name)").execute()
+        results = self.service.files().list(q=query, fields="files(id, name)").execute()
         files = results.get('files', [])
         return files[0] if files else None
 
@@ -132,13 +131,13 @@ class GoogleDriveClient:
             )
             .execute()
         )
+        copied_file_id = copied_file['id']
 
-        file_id = copied_file['id']
         request = (
             self.service
             .files()
             .export_media(
-                fileId=file_id,
+                fileId=copied_file_id,
                 mimeType='application/pdf'
             )
         )
@@ -151,18 +150,21 @@ class GoogleDriveClient:
 
         pdf_content = request.execute()
 
-        (
-            self.service
-            .files()
-            .create(
-                body=pdf_metadata,
-                media_body=MediaIoBaseUpload(
-                    io.BytesIO(pdf_content),
-                    mimetype='application/pdf'
-                )
-            ).execute()
+        media = MediaIoBaseUpload(
+            io.BytesIO(pdf_content),
+            mimetype='application/pdf'
         )
 
-        self.service.files().delete(fileId=file_id).execute()
+        file = self._get_file(filename=pdf_name, parent_id=folder_id)
+
+        if file:
+            file_id = self._update_file(file_id=file['id'], media=media)
+        else:
+            file_id = self._create_file(media=media, metadata=pdf_metadata)
 
         print(f"Converted {filename} to PDF and saved to destination folder")
+        self.service.files().delete(fileId=copied_file_id).execute()
+
+        return file_id
+
+

@@ -2,14 +2,17 @@ import datetime
 
 from celery import shared_task
 from celery.utils.log import get_task_logger
-from django.conf import settings
 
 from invoices.repositories import (
-    EmployerRepository, CustomerRepository, WorkRepository,
+    EmployerRepository,
+    CustomerRepository,
+    WorkRepository,
     CustomerInvoiceRepository
 )
-from invoices.services import GenerateCustomerInvoicesService, \
+from invoices.services import (
+    GenerateCustomerInvoicesService,
     RestoreCustomerInvoicesService
+)
 from invoices.drive import GoogleDriveClient
 
 service_mapper = {
@@ -19,7 +22,7 @@ service_mapper = {
 logger = get_task_logger(__name__)
 
 @shared_task
-def generate_customer_invoices(month: datetime.date):
+def generate_customer_invoices(month: datetime.date, last_invoice_number: str):
 
     drive = GoogleDriveClient()
 
@@ -41,7 +44,8 @@ def generate_customer_invoices(month: datetime.date):
         employer_repo=employer_repo,
         customer_repo=customer_repo,
         work_repo=work_repo,
-        invoice_repo=invoice_repo
+        invoice_repo=invoice_repo,
+        last_invoice_number=last_invoice_number
     )
     service.execute()
     logger.info(

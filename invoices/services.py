@@ -21,7 +21,7 @@ from .engine import (
     Contact, Context
 )
 from .drive import GoogleDriveClient
-from .models import Employee, Customer, Employer, Work
+from .models import Work
 from .repositories import (
     EmployerRepository,
     CustomerRepository,
@@ -126,7 +126,8 @@ class GenerateCustomerInvoicesService:
             employer_repo: EmployerRepository,
             customer_repo: CustomerRepository,
             work_repo: WorkRepository,
-            invoice_repo: CustomerInvoiceRepository
+            invoice_repo: CustomerInvoiceRepository,
+            last_invoice_number: str
     ):
         self.start_date = start_date
         self.end_date = end_date
@@ -138,6 +139,8 @@ class GenerateCustomerInvoicesService:
         self.customer_repo = customer_repo
         self.work_repo = work_repo
         self.invoice_repo = invoice_repo
+
+        self.last_invoice_number = last_invoice_number
 
     def execute(self):
         employer = self.employer_repo.get()
@@ -154,10 +157,18 @@ class GenerateCustomerInvoicesService:
 
         contractor = self._build_contractor(name=employer.name, data=employer.data)
 
-        invoices = []
+        # FIXME
+        invoice_number = int(self.last_invoice_number)
+
+        invoices_to_create = []
         for customer in customers:
+            invoice_number += 1
             client = self._build_client(data=customer.data)
-            content = self._build_content(works=works, data=customer.data)
+            content = self._build_content(
+                works=works,
+                data=customer.data,
+                invoice_number=invoice_number
+            )
             filename = self._create_filename(customer.name)
 
             context = Context(
@@ -189,9 +200,24 @@ class GenerateCustomerInvoicesService:
                 data=context.dict()
             )
 
-            invoices.append(invoice)
+            invoices_to_create.append(invoice)
 
-        self.invoice_repo.create_many(invoices)
+        # TODO list all invoices for the month
+        invoices = self.invoice_repo.get_by_month(year=self.end_date.year, month=self.end_date.month)
+        mapper = {
+            invoice.customer_id: invoice
+            for invoice in invoices
+        }
+        # iterate over draft and split which ones has to be created and which one has to be updated
+        invoices_to_update = []
+        for invoice in invoices_to_create:
+            if invoice.customer_id in mapper:
+                invoice = mapper[invoice.customer_id]
+                invoices_to_update.append(invoice)
+                invoices_to_create.remove(invoice)
+
+        self.invoice_repo.create_many(invoices_to_create)
+        self.invoice_repo.update_many(invoices_to_update)
 
     @staticmethod
     def _create_filename(name: str) -> str:
@@ -238,7 +264,12 @@ class GenerateCustomerInvoicesService:
             number=number
         )
 
-    def _build_content(self, data: dict, works: QuerySet[Work]) -> Content:
+    def _build_content(
+            self,
+            data: dict,
+            works: QuerySet[Work],
+            invoice_number: str
+    ) -> Content:
         grouper = {}
         for work in works:
             if work.date not in grouper:
@@ -254,7 +285,7 @@ class GenerateCustomerInvoicesService:
 
         return Content(
             items=items,
-            invoice_number='345',
+            invoice_number=invoice_number,
             issue_date=self.end_date,
             extended=data.get('wants_extended_invoice', False),
             vat=data.get('is_vat', False),
