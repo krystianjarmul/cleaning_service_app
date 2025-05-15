@@ -23,7 +23,6 @@ class GoogleDriveClient:
         self.root_folder_id = ROOT_FOLDER_ID
 
     def download(self, file_id: str, output_path: str):
-
         request = self.service.files().get_media(fileId=file_id)
 
         fh = io.FileIO(output_path, 'wb')

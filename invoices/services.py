@@ -1,15 +1,13 @@
 import datetime
 import os
 import io
+import json
 import shutil
 
 from django.conf import settings
 from django.db.models import QuerySet
 from docxtpl import DocxTemplate
 
-from .data.customers import CUSTOMERS
-from .data.employees import EMPLOYEES
-from .data.employer import EMPLOYER
 from .engine import (
     DocxGenerator,
     Contractor,
@@ -46,12 +44,6 @@ class InitDatabaseService:
         self.employee_repo = employee_repo
         self.employer_repo = employer_repo
 
-        self.data = {
-            'customers': CUSTOMERS,
-            'employees': EMPLOYEES,
-            'employer': EMPLOYER
-        }
-
     def execute(self):
         self.clean_up()
         self.init_customers()
@@ -59,13 +51,19 @@ class InitDatabaseService:
         self.init_employer()
 
     def init_customers(self):
-        self.customer_repo.create_many(self.data['customers'])
+        with open('customers.json', 'r') as file:
+            data = json.loads(file)
+            self.customer_repo.create_many(data)
 
     def init_employees(self):
-        self.employee_repo.create_many(self.data['employees'])
+        with open('employees.json', 'r') as file:
+            data = json.loads(file)
+            self.employee_repo.create_many(data)
 
     def init_employer(self):
-        self.employer_repo.create(self.data['employer'])
+        with open('employer.json', 'r') as file:
+            data = json.loads(file)
+            self.employer_repo.create(data)
 
     def clean_up(self):
         self.customer_repo.delete_all()
@@ -91,7 +89,7 @@ class CleanDatabaseService:
         self.employer_repo.delete_all()
 
 
-class InitTemplateService:
+class DownloadTemplateService:
 
     def __init__(self, drive: GoogleDriveClient):
         self.drive = drive
@@ -348,3 +346,31 @@ class RestoreCustomerInvoicesService:
         year = date.strftime('%Y')
         month = date.strftime('%m')
         return f'backup/customers/{year}/{month}'
+
+
+class DownloadInitDataService:
+
+    def __init__(self, drive: GoogleDriveClient):
+        self.drive = drive
+
+        self._entities = [
+            'customers',
+            'employees',
+            'employer'
+        ]
+
+        self._folder_path = f'{settings.BASE_DIR}/invoices/data'
+
+
+    def execute(self):
+        for entity in self._entities:
+            self._download_data(entity)
+
+    def _download_data(self, entity: str):
+        file_id = settings.GOOGLE_DRIVE_INIT_DATA[entity]
+        output_path = f'{self._folder_path}/{entity}.json'
+
+        os.makedirs(self._folder_path, exist_ok=True)
+
+        self.drive.download(file_id=file_id, output_path=output_path)
+        print(f'Downloaded {entity}.json data from Google Drive to {self._folder_path}')

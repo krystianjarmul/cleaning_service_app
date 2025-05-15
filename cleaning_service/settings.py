@@ -154,6 +154,12 @@ GOOGLE_DRIVE_DOCX_TEMPLATES = {
 CUSTOMER_TEMPLATE_PATH = 'invoices/docx/customer.docx'
 EMPLOYEE_TEMPLATE_PATH = 'invoices/docx/employee.docx'
 
+GOOGLE_DRIVE_INIT_DATA = {
+    'customers': os.getenv('GOOGLE_DRIVE_CUSTOMERS_INIT_DATA_ID'),
+    'employees': os.getenv('GOOGLE_DRIVE_EMPLOYEES_INIT_DATA_ID'),
+    'employer': os.getenv('GOOGLE_DRIVE_EMPLOYER_INIT_DATA_ID'),
+}
+
 CUSTOMER_INVOICE_START_NUMBER = 300
 
 REDIS_PORT = os.getenv('REDIS_PORT')
