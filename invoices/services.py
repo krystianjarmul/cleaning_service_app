@@ -353,21 +353,13 @@ class DownloadInitDataService:
     def __init__(self, drive: GoogleDriveClient):
         self.drive = drive
 
-        self._entities = [
-            'customers',
-            'employees',
-            'employer'
-        ]
-
         self._folder_path = f'{settings.BASE_DIR}/invoices/data'
 
-
     def execute(self):
-        for entity in self._entities:
-            self._download_data(entity)
+        for entity, file_id in settings.GOOGLE_DRIVE_INIT_DATA.items():
+            self._download_data(entity=entity, file_id=file_id)
 
-    def _download_data(self, entity: str):
-        file_id = settings.GOOGLE_DRIVE_INIT_DATA[entity]
+    def _download_data(self, entity: str, file_id: str):
         output_path = f'{self._folder_path}/{entity}.json'
 
         os.makedirs(self._folder_path, exist_ok=True)
