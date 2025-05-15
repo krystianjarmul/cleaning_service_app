@@ -348,21 +348,39 @@ class RestoreCustomerInvoicesService:
         return f'backup/customers/{year}/{month}'
 
 
-class DownloadInitDataService:
+class DownloadService:
 
     def __init__(self, drive: GoogleDriveClient):
         self.drive = drive
 
+    def download(self, file_id: str, output_path: str = None):
+        self.drive.download(file_id=file_id, output_path=output_path)
+
+
+class DownloadInitDataService(DownloadService):
+
+    def __init__(self, drive: GoogleDriveClient):
+        super().__init__(drive)
         self._folder_path = f'{settings.BASE_DIR}/invoices/data'
 
     def execute(self):
         for entity, file_id in settings.GOOGLE_DRIVE_INIT_DATA.items():
-            self._download_data(entity=entity, file_id=file_id)
+            self.download(
+                file_id=file_id,
+                output_path=f'{self._folder_path}/{entity}.json'
+            )
+        print('Init data downloaded successfully!')
 
-    def _download_data(self, entity: str, file_id: str):
-        output_path = f'{self._folder_path}/{entity}.json'
 
-        os.makedirs(self._folder_path, exist_ok=True)
+class DownloadGoogleAPICredsService(DownloadService):
 
-        self.drive.download(file_id=file_id, output_path=output_path)
-        print(f'Downloaded {entity}.json data from Google Drive to {self._folder_path}')
+    def __init__(self, drive: GoogleDriveClient):
+        super().__init__(drive)
+        self._folder_path = f'{settings.BASE_DIR}/invoices/data'
+
+    def execute(self):
+        self.download(
+            file_id=settings.GOOGLE_DRIVE_GOOGLE_API_CREDS_ID,
+            output_path=f'{settings.BASE_DIR}/google_api.json'
+        )
+        print('Google API credentials downloaded successfully!')
