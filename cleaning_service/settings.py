@@ -30,7 +30,7 @@ DEBUG = True
 
 ALLOWED_HOSTS = [
     'localhost',
-    'reinigungsservice-dev-b7d9b51cf604.herokuapp.com'
+    'reinigungsservice-e05915ddb969.herokuapp.com'
 ]
 
 
