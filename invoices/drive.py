@@ -1,4 +1,6 @@
+import base64
 import io
+import json
 
 from django.conf import settings
 
@@ -8,19 +10,32 @@ from googleapiclient.http import MediaIoBaseDownload, MediaIoBaseUpload
 
 
 SCOPES = settings.GOOGLE_DRIVE_SCOPES
-CREDENTIALS_FILE = settings.GOOGLE_DRIVE_SERVICE_ACCOUNT_FILE
+GOOGLE_API_CREDENTIALS_B64 = settings.GOOGLE_API_CREDENTIALS_B64
 ROOT_FOLDER_ID = settings.GOOGLE_DRIVE_ROOT_FOLDER_ID
 
 
 class GoogleDriveClient:
 
-    def __init__(self, credentials_file_path: str = CREDENTIALS_FILE):
-        self.credentials = service_account.Credentials.from_service_account_file(
-            credentials_file_path,
+    def __init__(self, credentials: str = GOOGLE_API_CREDENTIALS_B64):
+        if not credentials:
+            raise ValueError("GOOGLE_API_CREDENTIALS_B64 is not set")
+
+        credentials_info = self.decode_credentials(credentials)
+        self.credentials = service_account.Credentials.from_service_account_info(
+            credentials_info,
             scopes=SCOPES
         )
         self.service = build('drive', 'v3', credentials=self.credentials)
         self.root_folder_id = ROOT_FOLDER_ID
+
+    @staticmethod
+    def decode_credentials(credentials_b64: str) -> str:
+        try:
+            credentials_json = base64.b64decode(credentials_b64).decode('utf-8')
+            credentials = json.loads(credentials_json)
+            return credentials
+        except Exception as e:
+            raise ValueError(f"Failed to decode credentials: {e}")
 
     def download(self, file_id: str, output_path: str):
         request = self.service.files().get_media(fileId=file_id)

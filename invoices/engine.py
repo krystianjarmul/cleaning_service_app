@@ -102,7 +102,7 @@ class Item:
 
 @dataclasses.dataclass
 class Content:
-    invoice_number: str
+    invoice_number: int
     issue_date: datetime.date
     items: list[Item]
     note: str

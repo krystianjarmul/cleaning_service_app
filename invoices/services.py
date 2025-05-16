@@ -159,13 +159,12 @@ class GenerateCustomerInvoicesService:
         invoice_number = int(self.last_invoice_number)
 
         invoices_to_create = []
-        for customer in customers:
-            invoice_number += 1
+        for number, customer in enumerate(customers, start=invoice_number+1):
             client = self._build_client(data=customer.data)
             content = self._build_content(
                 works=works,
                 data=customer.data,
-                invoice_number=invoice_number
+                invoice_number=number
             )
             filename = self._create_filename(customer.name)
 
@@ -266,7 +265,7 @@ class GenerateCustomerInvoicesService:
             self,
             data: dict,
             works: QuerySet[Work],
-            invoice_number: str
+            invoice_number: int
     ) -> Content:
         grouper = {}
         for work in works:
@@ -348,19 +347,10 @@ class RestoreCustomerInvoicesService:
         return f'backup/customers/{year}/{month}'
 
 
-class DownloadService:
+class DownloadInitDataService:
 
     def __init__(self, drive: GoogleDriveClient):
         self.drive = drive
-
-    def download(self, file_id: str, output_path: str = None):
-        self.drive.download(file_id=file_id, output_path=output_path)
-
-
-class DownloadInitDataService(DownloadService):
-
-    def __init__(self, drive: GoogleDriveClient):
-        super().__init__(drive)
         self._folder_path = f'{settings.BASE_DIR}/invoices/data'
 
     def execute(self):
@@ -371,16 +361,5 @@ class DownloadInitDataService(DownloadService):
             )
         print('Init data downloaded successfully!')
 
-
-class DownloadGoogleAPICredsService(DownloadService):
-
-    def __init__(self, drive: GoogleDriveClient):
-        super().__init__(drive)
-        self._folder_path = f'{settings.BASE_DIR}/invoices/data'
-
-    def execute(self):
-        self.download(
-            file_id=settings.GOOGLE_DRIVE_GOOGLE_API_CREDS_ID,
-            output_path=f'{settings.BASE_DIR}/google_api.json'
-        )
-        print('Google API credentials downloaded successfully!')
+    def download(self, file_id: str, output_path: str = None):
+        self.drive.download(file_id=file_id, output_path=output_path)
