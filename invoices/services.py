@@ -44,6 +44,8 @@ class InitDatabaseService:
         self.employee_repo = employee_repo
         self.employer_repo = employer_repo
 
+        self.folder_path = f'{settings.BASE_DIR}/invoices/data'
+
     def execute(self):
         self.clean_up()
         self.init_customers()
@@ -51,18 +53,18 @@ class InitDatabaseService:
         self.init_employer()
 
     def init_customers(self):
-        with open('customers.json', 'r') as file:
-            data = json.loads(file)
+        with open(f'{self.folder_path}/customers.json', 'r') as file:
+            data = json.load(file)
             self.customer_repo.create_many(data)
 
     def init_employees(self):
-        with open('employees.json', 'r') as file:
-            data = json.loads(file)
+        with open(f'{self.folder_path}/employees.json', 'r') as file:
+            data = json.load(file)
             self.employee_repo.create_many(data)
 
     def init_employer(self):
-        with open('employer.json', 'r') as file:
-            data = json.loads(file)
+        with open(f'{self.folder_path}/employer.json', 'r') as file:
+            data = json.load(file)
             self.employer_repo.create(data)
 
     def clean_up(self):
