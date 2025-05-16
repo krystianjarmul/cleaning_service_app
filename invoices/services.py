@@ -21,11 +21,11 @@ from .engine import (
 from .drive import GoogleDriveClient
 from .models import Work
 from .repositories import (
-    EmployerRepository,
-    CustomerRepository,
+    EmployersRepository,
+    CustomersRepository,
     WorkRepository,
     CustomerInvoiceRepository,
-    EmployeeRepository
+    EmployeesRepository
 )
 
 
@@ -34,52 +34,46 @@ class InitDatabaseService:
     def __init__(
             self,
             drive: GoogleDriveClient,
-            customer_repo: CustomerRepository,
-            employee_repo: EmployeeRepository,
-            employer_repo: EmployerRepository
+            customers_repo: CustomersRepository,
+            employees_repo: EmployeesRepository,
+            employers_repo: EmployersRepository,
     ):
         self.drive = drive
 
-        self.customer_repo = customer_repo
-        self.employee_repo = employee_repo
-        self.employer_repo = employer_repo
+        self.repositories = {
+            'customers': customers_repo,
+            'employees': employees_repo,
+            'employers': employers_repo
+        }
 
         self.folder_path = f'{settings.BASE_DIR}/invoices/data'
 
     def execute(self):
-        self.clean_up()
-        self.init_customers()
-        self.init_employees()
-        self.init_employer()
+        for name in self.repositories:
+            self.clean_up(name)
+            self.init_db(name)
 
-    def init_customers(self):
-        with open(f'{self.folder_path}/customers.json', 'r') as file:
-            data = json.load(file)
-            self.customer_repo.create_many(data)
+    def init_db(self, key: str):
+        repo = self.repositories[key]
+        file_id = settings.GOOGLE_DRIVE_INIT_DATA[key]
+        buffer = self.drive.download(file_id=file_id)
+        data = json.loads(buffer.read().decode('utf-8'))
+        buffer.close()
+        repo.create_many(data)
 
-    def init_employees(self):
-        with open(f'{self.folder_path}/employees.json', 'r') as file:
-            data = json.load(file)
-            self.employee_repo.create_many(data)
+    def clean_up(self, key: str):
+        repo = self.repositories[key]
+        repo.delete_all()
 
-    def init_employer(self):
-        with open(f'{self.folder_path}/employer.json', 'r') as file:
-            data = json.load(file)
-            self.employer_repo.create(data)
-
-    def clean_up(self):
-        self.customer_repo.delete_all()
-        self.employee_repo.delete_all()
-        self.employer_repo.delete_all()
 
 
 class CleanDatabaseService:
 
     def __init__(
             self,
-            customer_repo: CustomerRepository,
-            employee_repo: EmployeeRepository,
-            employer_repo: EmployerRepository
+            customer_repo: CustomersRepository,
+            employee_repo: EmployeesRepository,
+            employer_repo: EmployersRepository
     ):
         self.customer_repo = customer_repo
         self.employee_repo = employee_repo
@@ -105,8 +99,8 @@ class DownloadTemplateService:
     def download_templates(self):
         for filename, file_id in settings.GOOGLE_DRIVE_DOCX_TEMPLATES.items():
             output_path = f'{self._temp_dir}/{filename}'
-            self.drive.download(file_id=file_id, output_path=output_path)
-            doc = DocxTemplate(output_path)
+            buffer = self.drive.download(file_id=file_id)
+            doc = DocxTemplate(buffer)
             doc.save(f'invoices/docx/{filename}.docx')
 
     def _create_temp_dir(self):
@@ -123,15 +117,14 @@ class GenerateCustomerInvoicesService:
             start_date: datetime.date,
             end_date: datetime.date,
             drive: GoogleDriveClient,
-            employer_repo: EmployerRepository,
-            customer_repo: CustomerRepository,
+            employer_repo: EmployersRepository,
+            customer_repo: CustomersRepository,
             work_repo: WorkRepository,
             invoice_repo: CustomerInvoiceRepository,
             last_invoice_number: str
     ):
         self.start_date = start_date
         self.end_date = end_date
-        self.template = settings.BASE_DIR / settings.CUSTOMER_TEMPLATE_PATH
 
         self.drive = drive
 
@@ -160,6 +153,8 @@ class GenerateCustomerInvoicesService:
         # FIXME
         invoice_number = int(self.last_invoice_number)
 
+        template = self.download_template()
+
         invoices_to_create = []
         for number, customer in enumerate(customers, start=invoice_number+1):
             client = self._build_client(data=customer.data)
@@ -176,10 +171,7 @@ class GenerateCustomerInvoicesService:
                 content=content
             )
 
-            generator = DocxGenerator(
-                data=context.dict(),
-                template=self.template,
-            )
+            generator = DocxGenerator(data=context.dict(), template=template)
 
             with io.BytesIO() as buffer:
                 generator.generate(buffer)
@@ -292,6 +284,10 @@ class GenerateCustomerInvoicesService:
             month=self.end_date.month,
             note=data['note'],
         )
+
+    def download_template(self) -> io.BytesIO:
+        template_file_id = settings.GOOGLE_DRIVE_DOCX_TEMPLATES['customers']
+        return self.drive.download(file_id=template_file_id)
 
 
 class RestoreCustomerInvoicesService:

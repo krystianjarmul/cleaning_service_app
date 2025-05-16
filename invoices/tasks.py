@@ -4,8 +4,8 @@ from celery import shared_task
 from celery.utils.log import get_task_logger
 
 from invoices.repositories import (
-    EmployerRepository,
-    CustomerRepository,
+    EmployersRepository,
+    CustomersRepository,
     WorkRepository,
     CustomerInvoiceRepository
 )
@@ -26,8 +26,8 @@ def generate_customer_invoices(month: datetime.date, last_invoice_number: str):
 
     drive = GoogleDriveClient()
 
-    employer_repo = EmployerRepository()
-    customer_repo = CustomerRepository()
+    employer_repo = EmployersRepository()
+    customer_repo = CustomersRepository()
     work_repo = WorkRepository()
     invoice_repo = CustomerInvoiceRepository()
 

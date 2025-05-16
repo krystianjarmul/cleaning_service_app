@@ -37,18 +37,20 @@ class GoogleDriveClient:
         except Exception as e:
             raise ValueError(f"Failed to decode credentials: {e}")
 
-    def download(self, file_id: str, output_path: str):
+    def download(self, file_id: str) -> io.BytesIO:
         request = self.service.files().get_media(fileId=file_id)
 
-        fh = io.FileIO(output_path, 'wb')
-        downloader = MediaIoBaseDownload(fh, request)
+        buffer = io.BytesIO()
+        downloader = MediaIoBaseDownload(buffer, request)
 
         done = False
         while not done:
             status, done = downloader.next_chunk()
             print(f"  Download {int(status.progress() * 100)}%")
 
-        print(f"{output_path} downloaded successfully!")
+        buffer.seek(0)
+        print(f"File {file_id} downloaded successfully.")
+        return buffer
 
     def _get_file(self, filename: str, parent_id: str) -> dict:
         query = f"name = '{filename}' and mimeType != 'application/vnd.google-apps.folder' and trashed = false"

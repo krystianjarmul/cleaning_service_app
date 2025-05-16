@@ -7,22 +7,23 @@ from django.db.models import (
 from invoices.models import Employer, Work, Customer, CustomerInvoice, Employee
 
 
-class EmployerRepository:
+class EmployersRepository:
 
     @staticmethod
     def get():
         return Employer.objects.first()
 
     @staticmethod
-    def create(data: dict):
-        return Employer.objects.create(**data)
+    def create_many(data: list[dict]):
+        employers = [Employer(**item) for item in data]
+        Employer.objects.bulk_create(employers)
 
     @staticmethod
     def delete_all():
         Employer.objects.all().delete()
 
 
-class CustomerRepository:
+class CustomersRepository:
 
     @staticmethod
     def get_for_invoice(
@@ -49,7 +50,7 @@ class CustomerRepository:
         Customer.objects.all().delete()
 
 
-class EmployeeRepository:
+class EmployeesRepository:
 
     @staticmethod
     def create_many(data: list[dict]):

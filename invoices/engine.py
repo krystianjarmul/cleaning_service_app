@@ -149,7 +149,7 @@ class Context:
 
 class DocxGenerator:
 
-    def __init__(self, data: dict, template: str):
+    def __init__(self, data: dict, template: io.BytesIO):
         self.data = data
         self.template = template
 

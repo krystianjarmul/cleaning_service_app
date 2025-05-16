@@ -149,17 +149,17 @@ GOOGLE_DRIVE_SCOPES = [
     'https://www.googleapis.com/auth/drive.readonly'
 ]
 GOOGLE_DRIVE_DOCX_TEMPLATES = {
-    'customer': os.getenv('GOOGLE_DRIVE_CUSTOMER_TEMPLATE_ID'),
-    'employee': os.getenv('GOOGLE_DRIVE_EMPLOYEE_TEMPLATE_ID'),
+    'customers': os.getenv('GOOGLE_DRIVE_CUSTOMERS_TEMPLATE_ID'),
+    'employees': os.getenv('GOOGLE_DRIVE_EMPLOYEES_TEMPLATE_ID'),
 }
 
-CUSTOMER_TEMPLATE_PATH = 'invoices/docx/customer.docx'
-EMPLOYEE_TEMPLATE_PATH = 'invoices/docx/employee.docx'
+CUSTOMER_TEMPLATE_PATH = 'invoices/docx/customers.docx'
+EMPLOYEE_TEMPLATE_PATH = 'invoices/docx/employees.docx'
 
 GOOGLE_DRIVE_INIT_DATA = {
     'customers': os.getenv('GOOGLE_DRIVE_CUSTOMERS_INIT_DATA_ID'),
     'employees': os.getenv('GOOGLE_DRIVE_EMPLOYEES_INIT_DATA_ID'),
-    'employer': os.getenv('GOOGLE_DRIVE_EMPLOYER_INIT_DATA_ID'),
+    'employers': os.getenv('GOOGLE_DRIVE_EMPLOYERS_INIT_DATA_ID'),
 }
 
 GOOGLE_API_CREDENTIALS_B64 = os.getenv('GOOGLE_API_CREDENTIALS_B64')
