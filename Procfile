@@ -1,2 +1,2 @@
 web: gunicorn cleaning_service.wsgi --log-file -
-worker: celery -A cleaning_service worker --loglevel=info
+worker: celery --app cleaning_service.celery.app worker --loglevel INFO
