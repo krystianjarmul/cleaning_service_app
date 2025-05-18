@@ -343,21 +343,3 @@ class RestoreCustomerInvoicesService:
         year = date.strftime('%Y')
         month = date.strftime('%m')
         return f'backup/customers/{year}/{month}'
-
-
-class DownloadInitDataService:
-
-    def __init__(self, drive: GoogleDriveClient):
-        self.drive = drive
-        self._folder_path = f'{settings.BASE_DIR}/invoices/data'
-
-    def execute(self):
-        for entity, file_id in settings.GOOGLE_DRIVE_INIT_DATA.items():
-            self.download(
-                file_id=file_id,
-                output_path=f'{self._folder_path}/{entity}.json'
-            )
-        print('Init data downloaded successfully!')
-
-    def download(self, file_id: str, output_path: str = None):
-        self.drive.download(file_id=file_id, output_path=output_path)

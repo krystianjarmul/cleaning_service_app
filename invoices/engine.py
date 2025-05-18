@@ -93,8 +93,9 @@ class Item:
     date: datetime.date
 
     def dict(self) -> dict:
+        hours = int(self.hours) if self.hours.is_integer() else self.hours
         return {
-            'hours': self.hours,
+            'hours': f"{hours} Std",
             'total': f"{self.price / 100:.2f} €",
             'date': self.date.strftime('%d.%m.%Y')
         }
