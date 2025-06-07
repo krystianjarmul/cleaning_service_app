@@ -14,4 +14,4 @@ COPY requirements.txt .
 
 RUN pip install --no-cache-dir -r requirements.txt
 
-CMD ["gunicorn", "--bind", "0.0.0.0:8000", "cleaning_service.wsgi:application", "--reload"]
+CMD ["gunicorn", "--bind", "0.0.0.0:8000", "config.wsgi:application", "--reload"]

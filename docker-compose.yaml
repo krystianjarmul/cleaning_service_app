@@ -47,7 +47,7 @@ services:
         depends_on:
             - django
             - redis
-        command: celery --app cleaning_service.celery.app worker --loglevel INFO
+        command: celery --app config.celery.app worker --loglevel INFO
         networks:
             - cleaning_service_network
 

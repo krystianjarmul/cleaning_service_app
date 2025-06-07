@@ -3,11 +3,22 @@ from django.shortcuts import redirect
 from django.template.response import TemplateResponse
 from django.urls import path, reverse
 from django.utils.html import format_html
+from django import forms
 
 from . import models
-from .forms import GenerateInvoiceForm
 from .tasks import generate_customer_invoices
 
+
+class GenerateInvoiceForm(forms.Form):
+    month = forms.DateField(
+        label='Month',
+        widget=forms.DateInput(attrs={'type': 'month'}),
+        help_text='Select the month for which invoices should be generated.'
+    )
+    last_invoice_number = forms.IntegerField(
+        label='Last Invoice Number',
+        help_text='Enter the last invoice number to continue from.'
+    )
 
 @admin.register(models.Employer)
 class EmployerAdmin(admin.ModelAdmin):

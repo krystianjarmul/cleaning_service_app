@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block title %}Logowanie{% endblock %}
+
+{% block content %}
+<div class="column is-half is-offset-one-quarter">
+    <div class="box">
+        <h1 class="title has-text-centered">Zaloguj się</h1>
+        <form method="POST">
+            {% csrf_token %}
+            <div class="field">
+                <label class="label">Użytkownik</label>
+                <div class="control">
+                    <input class="input" type="text" name="username" required>
+                </div>
+            </div>
+
+            <div class="field">
+                <label class="label">Hasło</label>
+                <div class="control">
+                    <input class="input" type="password" name="password" required>
+                </div>
+            </div>
+
+            <div class="field">
+                <div class="control">
+                    <button class="button is-link" type="submit">Zaloguj</button>
+                </div>
+            </div>
+
+            {% if error %}
+                <p class="has-text-danger has-text-centered">{{ error }}</p>
+            {% endif %}
+        </form>
+    </div>
+</div>
+{% endblock %}
